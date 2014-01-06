@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Batch query</title>
+    <!-- from CDN -->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.3.0/pure-min.css" />
+
+    <!--self defined scripts and styles -->
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src='/javascripts/underscore-min.js'></script>
+    <script src='/javascripts/util.js'></script>
+
+    <script type="text/javascript" src="/jmol/jsmol/JSmol.min.nojq.js"></script>
+    <script type="text/javascript" src="/jmol/jsmol/js/Jmol2.js"></script>
+
+    <script type="text/javascript">
+     jmolInitialize("/jmol");
+    </script>
+  </head>
+  <body>
+    <div class='pure-g'>
+      <div class='pure-u-1-2'>
+	<div id='query-upload-div'>
+	  <h2>Upload query pdb files (upload multiple times to for multiple query pdbs)</h2>
+	  <form id='pdb-upload-form' method="post" enctype="multipart/form-data" action="/upload">
+	    <input type="file" id="query-pdb" name="attachment">
+	    <button class='submit-btn'>Upload</button>
+	    <span id='to-be-uploaded-querys'></span>
+	  </form>
+	</div>
+	<div id='query-epitope-selection'>
+	  <h2>Epitope selection</h2>
+	</div>
+	<div id='against-upload-div'>
+	  <h2>Upload pdb files to query against</h2>
+	  <form id='pdb-upload-form' method="post" enctype="multipart/form-data" action="/upload">
+	    <input type="file" id="against-pdb" name="attachment">
+	    <button class='submit-btn'>Upload</button>
+	    <span id='to-be-uploaded-againsts'></span>
+	  </form>
+	</div>
+	<div id='against-epitope-selection'>
+	  <h2>Epitope selection</h2>
+	</div>
+	<div id='against-selection-div'>
+	  <h2>PDB ids to query against (use space to separate each id)</h2>
+	  <textarea id='pdb-ids'>
+	    sample1 sample2
+	  </textarea>
+	</div>
+
+	<div id='result-config-div'>
+	  <h2>Result configuration</h2>
+	  <label for='topn'>Top N
+	    <input id='topn' name='topn' type='text' value='1'/>
+	  </label>
+	</div>
+	<div id='calculate-simmatrix-div'>
+	  <h2>Calculate </h2>
+	  <button class='submit-btn'>Calculate</button>
+	</div>
+
+	<div id='result-display'>
+	  <h2>Top n list for each query structure</h2>
+	  <table id='topn-tbl'>
+
+	  </table>
+
+	  <h2>Similarity matrix</h2>
+	  <table id='simmatrix-tbl'>
+	  </table>
+	</div>
+      </div>
+
+      <div class='pure-u-1-2'>
+	<div>
+	  <p>The 3D structure</p>
+	  <!--where the 3D display is rendered -->
+	  <script>
+	   jmolApplet(600);
+
+	   currentSequence = null;//the global current sequence
+
+
+	   $ (document).ready (function (){
+	     showLabelCheckbox = $('div#jmol-control #toggleLabel');
+
+	     showLabelCheckbox.click (function (){
+	       if (this.checked){
+		 //show the label
+		 currentSequence.label ();
+	       }
+	       else{
+		 //hide the label
+		 currentSequence.unlabel ();
+	       }
+	     });
+	   });
+	  </script>
+	  <div id='jmol-control'>
+	    <label for='toggleLabel'><input type='checkbox' name='toggleLabel' id='toggleLabel'/>Show residue label</label>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+   $ (document).ready (function (){
+
+     var query_paths = [],
+     against_paths = [],
+     against_ids = [];
+
+     /*
+     upload pdb file
+      */
+     //create the two Uploader
+     var queryUploader = new Uploader ('#query-upload-div', function (path, files){
+       var file = files[0];
+       $ ('#to-be-uploaded-querys').append ('<span>' + file.name + '</span>');
+
+       //display the sequence data for epitope selection
+       var seqdisp = new SequenceDisplay ('#query-epitope-selection', file.name, {pdb_path: path});
+
+       query_paths.push ({name: file.name, path: path, epitope: seqdisp.reslist});
+
+     });
+
+     againstUploader = new Uploader ('#against-upload-div', function (path, files){
+       var file = files[0];
+       $ ('#to-be-uploaded-againsts').append ('<span>' + file.name + '</span>');
+
+       //display the sequence data for epitope selection
+       var seqdisp = new SequenceDisplay ('#against-epitope-selection', file.name, {pdb_path: path});
+
+       against_paths.push ({name: file.name, path: path, epitope: seqdisp.reslist});
+     });
+
+     var ta = new PdbIdTextArea('#pdb-ids');
+
+     //after uploading, calculate the simscore
+     $('#calculate-simmatrix-div .submit-btn').click (function (){
+       var aggregate_func = function (s1, s2, s3){
+	 return s1 + s2 + s3;
+       }
+
+       $ .getJSON('/api/simmatrix', $.param ({query_paths: JSON.stringify(query_paths),
+					      against_paths: JSON.stringify (against_paths),
+					      against_ids: JSON.stringify (ta.prepareForm ())}),
+		  function (matrix){
+
+	   /*
+	   make the simmatrix table
+	    */
+	   //convert to nested array
+	   var column_headers = Object.keys(matrix[Object.keys (matrix)[0]])
+	   row_headers = Object.keys (matrix),
+	   data = row_headers.map (function (rowkey){
+	     var row = matrix [rowkey];
+	     return column_headers.map (function (colkey){
+	       var elem = row[colkey];
+	       return aggregate_func (elem.score1, elem.score2, elem.score3);
+	     });
+	   });
+
+	   renderTable ('#simmatrix-tbl', column_headers, row_headers, data);
+
+	   /*
+	   make the top n list
+	    */
+	   var sortedObject = {},
+	   topn = parseInt ($('input[name=topn]').val ());
+	   console.log (topn);
+
+	   //sort each matrix row
+	   row_headers.forEach (function (rowkey){
+	     sortedObject[rowkey] = Object.keys(matrix[rowkey]).sort (function (k1, k2){
+	       var e1 = matrix[rowkey][k1],
+	       e2 = matrix[rowkey][k2];
+
+	       return aggregate_func(e1.score1, e1.score2, e1.score3) < aggregate_func(e2.score2, e2.score2, e2.score3);
+	     });
+	   });
+
+	   renderTable ('#topn-tbl',
+			_.range (1, (topn <= column_headers.length) ? topn: column_headers.length),
+			row_headers,
+			row_headers.map (function (row_header){
+	       var row = sortedObject[row_header];
+	       return ((topn <= column_headers.length) ? row.splice (0, topn) : row)
+							    .map (function (col_header){ //if topn > column count, then no need to splice the array
+											var elem = matrix[row_header][col_header];
+											return col_header + '(' + aggregate_func(elem.score1, elem.score2, elem.score3).toString () + ')';
+											});
+	     }));
+
+	 });
+     });
+   });
+  </script>
+
+</html>
+

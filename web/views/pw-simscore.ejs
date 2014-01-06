@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Pairwise similarity score calculation</title>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src='/javascripts/util.js'></script>
+  </head>
+  <body>
+    <div id='query-upload-div'>
+      <h2>Upload query pdb file</h2>
+      <form id='pdb-upload-form' method="post" enctype="multipart/form-data" action="/upload">
+	<input type="file" id="query-pdb" name="attachment">
+	<button class='submit-btn'>Upload</button>
+      </form>
+    </div>
+    <div id='against-upload-div'>
+      <h2>Upload against pdb file</h2>
+      <form id='pdb-upload-form' method="post" enctype="multipart/form-data" action="/upload">
+	<input type="file" id="against-pdb" name="attachment">
+	<button class='submit-btn'>Upload</button>
+      </form>
+    </div>
+
+    <div id='calculate-simscore-div'>
+      <h2>Calculate</h2>
+      <button class='submit-btn'>Calculate</button>
+      <span id='simscore'></span>
+    </div>
+
+  </body>
+  
+  <script>
+   $ (document).ready (function (){
+     
+     //create the two Uploader
+     var queryUploader = new Uploader ('#query-upload-div');
+     againstUploader = new Uploader ('#against-upload-div');
+
+     //after uploading, calculate the simscore
+     $('#calculate-simscore-div .submit-btn').click (function (){
+       $ .getJSON('/api/pw-simscore', $.param ({query_path: queryUploader.path, against_path: againstUploader.path}), 
+		  function (data){
+	   console.log (data);
+	   $ ('#simscore').text ('score1: ' + data.score1 + 
+				 ' score2: ' + data.score2 + 
+				 ' score3: ' + data.score3);
+	 });
+     });
+   });
+  </script>
+
+</html>
+

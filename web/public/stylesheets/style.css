@@ -1,0 +1,32 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+
+.res{
+    padding: 5px;
+}
+
+.res:hover{
+    background-color: #aaa;
+    cursor: pointer;
+}
+
+.res-active{
+    color: red;
+}
+
+.clear {
+    clear: both;
+}
+
+body,
+.pure-g [class *= "pure-u"],
+.pure-g-r [class *= "pure-u"] {
+    /* Set your content font stack here: */
+    font-family: Georgia, Times, "Times New Roman", serif;
+}
